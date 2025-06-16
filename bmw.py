@@ -10,8 +10,10 @@ client.set_timeout(10.0)
 world = client.get_world()
 blueprint_library = world.get_blueprint_library()
 
+
 # === Spawn BMW vehicle ===
 vehicle_bp = blueprint_library.find('vehicle.bmw.grandtourer')
+vehicle_bp.set_attribute('color', '0,0,50')  # Dunkelblau in RGB
 spawn_point = random.choice(world.get_map().get_spawn_points())
 vehicle = world.spawn_actor(vehicle_bp, spawn_point)
 
@@ -25,6 +27,7 @@ CAMERA_TRANSFORMS = [
     ("Front-Right", carla.Transform(carla.Location(z=2.5), carla.Rotation(yaw=45))),
     ("Rear-Left",   carla.Transform(carla.Location(z=2.5), carla.Rotation(yaw=-135))),
     ("Rear-Right",  carla.Transform(carla.Location(z=2.5), carla.Rotation(yaw=135))),
+    ("Top-Down", carla.Transform(carla.Location(z=15), carla.Rotation(pitch=-90)))
 ]
 
 camera_bp = blueprint_library.find('sensor.camera.rgb')
@@ -57,7 +60,47 @@ try:
     while True:
         if all(img is not None for img in images):
             h, w, _ = images[0].shape
-            black = np.zeros((h, w, 3), dtype=np.uint8)
+            
+        
+            ### for the middle grid, center info image with position + time
+
+            # Use top-down camera image for center tile
+            top_down = images[8].copy()
+
+            # Get info
+            location = vehicle.get_location()
+            timestamp = world.get_snapshot().timestamp.elapsed_seconds
+            info_lines = [
+                f"Position:",
+                f"X: {location.x:.1f}  Y: {location.y:.1f}  Z: {location.z:.1f}",
+                f"Time: {timestamp:.2f} s"
+            ]
+
+            # Overlay text
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            scale = 0.6
+            color = (255, 255, 255)
+            line_height = 25
+            for i, line in enumerate(info_lines):
+                cv2.putText(top_down, line, (10, 30 + i * line_height), font, scale, color, 1, cv2.LINE_AA)
+
+            black = top_down  # replace black tile with top-down + text
+            # Get position and time
+            location = vehicle.get_location()
+            timestamp = world.get_snapshot().timestamp.elapsed_seconds
+
+            # Format text
+            pos_text = f"Position:\nX: {location.x:.1f}  Y: {location.y:.1f}  Z: {location.z:.1f}"
+            time_text = f"Time: {timestamp:.2f} s"
+            lines = pos_text.split("\n") + [time_text]
+
+            # Render multiline text
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            scale = 0.6
+            color = (255, 255, 255)
+            line_height = 25
+            for i, line in enumerate(lines):
+                cv2.putText(black, line, (10, 30 + i * line_height), font, scale, color, 1, cv2.LINE_AA)
             grid = [
                 images[4], images[0], images[5],  # Front-Left, Front, Front-Right
                 images[2], black,      images[3],  # Left, Empty, Right
